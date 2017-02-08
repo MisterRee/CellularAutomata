@@ -1,6 +1,8 @@
 <!doctype html>
-<html>
+<html lang="en">
 	<head>
+		<meta charset="utf-8">
+		<script src="/socket.io/socket.io.js"></script>
 		<style>
 			body{
 				margin: 0;
@@ -32,6 +34,23 @@
 			*/
 
 			'use strict';
+
+			let connectionStatus = false;
+			let socket;
+
+			function connectSocket( e ){
+				socket = io.connect();
+
+				if( connectionStatus ){
+					return;
+				}
+
+				socket.on( 'connect', function(){
+					connectionStatus = true;
+					console.log( "connected!" );
+				});
+			}
+
 			const canvas = document.querySelector( 'canvas' );
 			const ctx = canvas.getContext( '2d' );
 
