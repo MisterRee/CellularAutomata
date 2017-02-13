@@ -42,16 +42,16 @@
 			const ctx = canvas.getContext( '2d' );
 
 			// Holds the dimension in pixels for each grid, specific to the client browser
+			let width = 0;
+			let height = 0;
 			let grid_width = 0;
 			let grid_height = 0;
 
-			// function to be called whenever the browser is resized,
-			let resize = function(){
-				grid_width = canvas.clientWidth / width;
-				grid_height = canvas.clientHeight / height;
-				canvas.width = width * grid_width;
-				canvas.height = height * grid_height;
-			}
+			// Mouse interactivity variables
+			let mouseEffectSize = 5; // Should be odd number. Acts like a palette size
+			let mouseColor = { r : 0,
+												 g : 0,
+											   b : 0 };
 
 			// Connection attempt to socket server
 			let connectSocket = function( e ){
@@ -63,13 +63,26 @@
 
 				socket.on( 'connect', function(){
 					connectionStatus = true;
-					init();
+					console.log( "connected successfully!" );
+					init( socket );
 				});
 			}
 
 			// function to be run before the looping functions begin. Callback from connectSocket
-			let init = function(){
-				resize(); // This should be run at least once before display
+			let init = function( socket ){
+				socket.emit( 'connection' );
+
+				// Resize occurs after server returns width/height
+				socket.on( 'setSize', function( data ){
+					width = data.w;
+					height = data.h;
+					resize(); // This should occur at least once. Without this call, it won't be issued unless the user resizes the window.
+					window.onresize = resize();
+				});
+
+				socket.on( 'sendColor', function( data ){
+					
+				});
 
 				// Listener begins after initalizing finishes
 				socket.on( 'draw', function( data ){
@@ -77,33 +90,31 @@
 				});
 			}
 
+				// Resizes the dimensions of each grid to display the correct resolution
+				let resize = function(){
+					grid_width = canvas.clientWidth / width;
+					grid_height = canvas.clientHeight / height;
+					canvas.width = width * grid_width;
+					canvas.height = height * grid_height;
+				}
 
-			// Visually drawing function, which needs to be continuously called
-			let draw = function( data ){
-				// Clear canvas before redraw
-				ctx.fillStyle = 'white';
-				ctx.fillRect(0, 0, canvas.width, canvas.height );
+				// Visually drawing function, which needs to be continuously called
+				let draw = function( data ){
+					// Clear canvas before redraw
+					ctx.fillStyle = 'white';
+					ctx.fillRect(0, 0, canvas.width, canvas.height );
 
-				for( let y = 0; y < data.h; y++ ){
-					for( let x = 0; x < data.w; x++ ){
-						if( data.g[ y ][ x ].cs === 1 ){
-							ctx.fillStyle = "rgb(" + 0 + "," +
-																			 0 + "," +
-																			 0 + ")";
-							ctx.fillRect( x * grid_width + grid_width / 10, y * grid_height + grid_height / 10, grid_width * 4 / 5, grid_height * 4 / 5 );
-						} else {
-							ctx.fillStyle = "rgb(" + 255 + "," +
-																			 255 + "," +
-																			 255 + ")";
+					for( let y = 0; y < data.h; y++ ){
+						for( let x = 0; x < data.w; x++ ){
+							ctx.fillStyle = "rgb(" + data.g[ y ][ x ].rcv + "," +
+																			 data.g[ y ][ x ].gcv + "," +
+																			 data.g[ y ][ x ].bcv + ")";
 							ctx.fillRect( x * grid_width + grid_width / 10, y * grid_height + grid_height / 10, grid_width * 4 / 5, grid_height * 4 / 5 );
 						}
 					}
 				}
-			}
 
-			window.onload = init();
-			window.onresize = resize();
-			window.setInterval( draw, refreshRate );
+			window.onload = connectSocket();
 		</script>
 	</body>
 </html>

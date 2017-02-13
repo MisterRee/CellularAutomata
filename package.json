@@ -20,7 +20,6 @@
   "main": "./src/server.js",
   "scripts": {
     "start": "node ./src/server.js",
-    "prestart": "jshint ./src",
     "test": "echo 'complete'"
   },
   "dependencies": {
