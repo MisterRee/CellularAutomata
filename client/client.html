@@ -41,17 +41,15 @@
 			const canvas = document.querySelector( 'canvas' );
 			const ctx = canvas.getContext( '2d' );
 
-			// Holds the dimension in pixels for each grid, specific to the client browser
+			// Holds the dimension in pixels for each grid, scope specific to the client browser
 			let width = 0;
 			let height = 0;
 			let grid_width = 0;
 			let grid_height = 0;
 
-			// Mouse interactivity variables
-			let mouseEffectSize = 5; // Should be odd number. Acts like a palette size
-			let mouseColor = { r : 0,
-												 g : 0,
-											   b : 0 };
+			// Variables sent to server
+			let userID = Math.floor( Math.random() * 1000 )
+			let currentMouseGrid = { x : 0, y : 0 };
 
 			// Connection attempt to socket server
 			let connectSocket = function( e ){
@@ -59,36 +57,55 @@
 
 				if( connectionStatus ){
 					return;
+				} else {
+					socket.on( 'connect', function(){
+						connectionStatus = true;
+						console.log( "connected successfully!" );
+						init( socket );
+					});
 				}
-
-				socket.on( 'connect', function(){
-					connectionStatus = true;
-					console.log( "connected successfully!" );
-					init( socket );
-				});
-			}
+			};
 
 			// function to be run before the looping functions begin. Callback from connectSocket
 			let init = function( socket ){
 				socket.emit( 'connection' );
 
 				// Resize occurs after server returns width/height
-				socket.on( 'setSize', function( data ){
+				socket.on( 'clientSetup', function( data ){
 					width = data.w;
 					height = data.h;
+
 					resize(); // This should occur at least once. Without this call, it won't be issued unless the user resizes the window.
 					window.onresize = resize();
+
+					socket.emit( 'onconnection', userID );
 				});
 
-				socket.on( 'sendColor', function( data ){
-					
+				// Responce to server's request for this client's mouse position
+				socket.on( 'requestInput', function() {
+					socket.emit( 'sendInput', { ID : userID,
+						                           x : currentMouseGrid.x,
+																		   y : currentMouseGrid.y } );
 				});
 
 				// Listener begins after initalizing finishes
 				socket.on( 'draw', function( data ){
 					draw( data );
 				});
-			}
+
+				// Mouse events
+				canvas.addEventListener('mousemove', function( event ){
+					currentMouseGrid.x = Math.floor( event.clientX / canvas.clientWidth * width );
+					currentMouseGrid.y = Math.floor( event.clientY / canvas.clientHeight * height );
+				});
+				canvas.addEventListener('mouseout', function( event ){
+					currentMouseGrid.x = -1;
+					currentMouseGrid.y = -1;
+				});
+				canvas.addEventListener('click', function( event ){
+					socket.emit( 'changeColor', userID );
+				});
+			};
 
 				// Resizes the dimensions of each grid to display the correct resolution
 				let resize = function(){
@@ -96,7 +113,12 @@
 					grid_height = canvas.clientHeight / height;
 					canvas.width = width * grid_width;
 					canvas.height = height * grid_height;
-				}
+				};
+
+				// Adds event listeners to the canvas, only needs to be called once
+				let mouseActivity = function( event ){
+
+				};
 
 				// Visually drawing function, which needs to be continuously called
 				let draw = function( data ){
@@ -112,7 +134,7 @@
 							ctx.fillRect( x * grid_width + grid_width / 10, y * grid_height + grid_height / 10, grid_width * 4 / 5, grid_height * 4 / 5 );
 						}
 					}
-				}
+				};
 
 			window.onload = connectSocket();
 		</script>
