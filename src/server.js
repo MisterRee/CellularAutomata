@@ -26,6 +26,8 @@ const colorRollThreshold = 0.2; // Should be number between 0 - 0.5, forces rero
 const colorDarknessThreshold = 0.1; // Number between 0 - 1, causes very dark colors to brighten to a colored state even when a cell is alive
 let mouseEffectSize = 5; // Should be odd number. Acts like a palette size
 
+// Each cell contains an object which contains four variables,
+// The living state of the cell, and the three rgb color values of the current frame
 let grid = []; // Display
 let temp = []; // Editing
 let mouselocations = []; // Hold coordinates of each client's mouse
@@ -37,38 +39,23 @@ let packet = { rfr: refreshRate,
                  g: grid }; // The chunky data packet continuously sent to clients
 let users = [];
 
-  io.sockets.on( 'connection', function( socket ){
-    console.log( 'server detects connection' );
+  // function that generates a unique user ID, if an identical one is rolled, the function is run once again
+  let generateUserID = function(){
+    let userID = Math.floor( Math.random() * 1000 );
+    let test = true;
 
-    socket.emit( 'clientSetup', packet );
-
-    socket.on( 'onconnection', function( data ){
-      socket.ID = data;
-      users.push( { ID : data,
-                 color : generateMouseColor(),
-                     x : -1,
-                     y : -1 } );
-    });
-
-    socket.on( 'sendInput', function( data ){
-      for( let u = 0; u < users.length; u++ ){
-        if( socket.ID === data.ID ){
-          users[u].x = data.x;
-          users[u].y = data.y;
-          break;
-        }
+    for( let u = 0; u < users; u++ ){
+      if( users[u].ID === userID ){
+        test = false;
       }
-    });
+    }
 
-    socket.on( 'changeColor', function( data ){
-      for( let u = 0; u < users.length; u++ ){
-        if( socket.ID === data ){
-          users[u].color = generateMouseColor();
-          break;
-        }
-      }
-    });
-  });
+    if( test ){
+      return userID;
+    } else {
+      generateUserID();
+    }
+  };
 
   // function that needs to only be called once, rolls a random color for the person to use
   let generateMouseColor = function(){
@@ -131,7 +118,7 @@ let users = [];
   let getInput = function( callback ){
      // hand shaking with clients for their current mouse position
      io.sockets.emit( 'requestInput' );
-    callback();
+     callback();
   };
 
   // Neighbor scanning function that is continuously called
@@ -205,7 +192,7 @@ let users = [];
           temp[ y ][ x ].cs = 0;
         }
 
-        // second rule
+        // second rule, changed to be the opposite of the game of life. This causes cells to coninuously generate
         if( cnc < 1 && cnc > 4 && grid[ y ][ x ].cs === 1 ){
           temp[ y ][ x ].cs = 0;
         }
@@ -230,25 +217,41 @@ let users = [];
     for( let y = 0; y < height; y++ ){
       for( let x = 0; x < width; x++ ){
         let mouseEffect = false;
+        let ue = { n : 0,
+                   r : 0,
+                   g : 0,
+                   b : 0,
+                 rdc : 0,
+                 gdc : 0,
+                 bdc : 0 };
         for( let u = 0; u < users.length; u++){
           if( users[u].y !== -1 && users[u].x !== -1 ){
-            const distX = Math.abs( users[u].y - y );
-            const distY = Math.abs( users[u].x - x );
+            const distY = Math.abs( users[u].y - y );
+            const distX = Math.abs( users[u].x - x );
             if( distY <= Math.floor( mouseEffectSize / 2 ) &&
                 distY + distX < Math.ceil( mouseEffectSize / 2 ) ){
                 mouseEffect = true;
-                temp[ y ][ x ] = variedColorLimiter( temp[ y ][ x ],
-                                                     users[u].color.r,
-                                                     users[u].color.g,
-                                                     users[u].color.b,
-                                                     darkenRate * users[u].color.r / 128 / ( distX + distY + 1 ),
-                                                     darkenRate * users[u].color.g / 128 / ( distX + distY + 1 ),
-                                                     darkenRate * users[u].color.b / 128 / ( distX + distY + 1 ),
-                                                     lightenRate );
+                ue.n++;
+                ue.r += users[u].color.r;
+                ue.g += users[u].color.g;
+                ue.b += users[u].color.b;
+                ue.rdc += darkenRate * users[u].color.r / 128 / ( distX + distY + 1 );
+                ue.gdc += darkenRate * users[u].color.g / 128 / ( distX + distY + 1 );
+                ue.bdc += darkenRate * users[u].color.b / 128 / ( distX + distY + 1 );
             }
           }
         }
-        if( !mouseEffect ){
+
+        if( mouseEffect ){
+          temp[ y ][ x ] = variedColorLimiter( temp[ y ][ x ],
+                                               Math.floor( ue.r / ue.n ),
+                                               Math.floor( ue.g / ue.n ),
+                                               Math.floor( ue.b / ue.n ),
+                                               Math.floor( ue.rdc / ue.n ),
+                                               Math.floor( ue.gdc / ue.n ),
+                                               Math.floor( ue.bdc / ue.n ),
+                                               lightenRate );
+        } else {
           temp[ y ][ x ] = colorLimiter( temp[ y ][ x ], darkenRate, lightenRate );
         }
       }
@@ -348,18 +351,54 @@ let users = [];
 		return obj;
 	};
 
-  // Outputs calculated grid data to clients
+  // Outputs calculated grid data to clients after all calculations
   let emitData = function(){
     io.sockets.emit( 'draw', packet );
   };
 
-io.sockets.on( 'requestColor', function( socket ){
-  let data = { mcvc : maxColorValueCoefficient,
-               crt : colorRollThreshold,
-               cdt: colorDarknessThreshold,
-               mc : generateMouseColor() };
-  socket.mouseColor = data.mc;
-  socket.emit( 'sendColor', data );
-});
+  // Called when client connects to the socket
+  io.sockets.on( 'connection', function( socket ){
+    socket.emit( 'clientSetup', packet );
 
-init();
+    socket.on( 'onconnection', function(){
+      let userID = generateUserID();
+      socket.ID = userID;
+      users.push( { ID : userID,
+                 color : generateMouseColor(),
+                     x : -1,
+                     y : -1 } );
+    });
+
+    // Called every refresh frame to get the socket users' mouse coordinates
+    socket.on( 'sendInput', function( data ){
+      for( let u = 0; u < users.length; u++ ){
+        if( socket.ID === users[u].ID ){
+          users[u].x = data.x;
+          users[u].y = data.y;
+          break;
+        }
+      }
+    });
+
+    // Called when a user clicks to reroll their mouse color values associated to their socket
+    socket.on( 'changeColor', function(){
+      for( let u = 0; u < users.length; u++ ){
+        if( socket.ID === users[u].ID ){
+          users[u].color = generateMouseColor();
+          break;
+        }
+      }
+    });
+
+    // Removes user from array if disconnected
+    socket.on( 'disconnect', function (){
+      for( let u = 0; u < users.length; u++ ){
+        if( socket.ID === users[u].ID ){
+          users.splice(u, 1);
+          break;
+        }
+      }
+    });
+  });
+
+  init();
