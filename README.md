@@ -3,7 +3,7 @@ A Javascript browser based example of cellular automata
 
 [Live-Heroku Demo](https://cellularautomata.herokuapp.com/)
 
-[Client-Only Demo](https://people.rit.edu/dxl1720/ComputationalAesthetics/conwayMod.html)
+[Client-Only Demo](https://people.rit.edu/dxl1720/ComputationalAesthetics/CellularAutomata/conwayMod.html)
 
 #### Click to change your mouse-over color!
 
