@@ -23,5 +23,7 @@ The page will output steady, sine-wave beeps at each iteration of the cell autom
 
 Mousing over and influncing the page will change the signal as well, in different ways depending on the colors splashed to the cells.
 > Red cells will detune the signal;
+
 > Green cells will change the lowpass frequency that is being applied to the signal;
+
 > Blue cells will also change the frequency of the base signal;
